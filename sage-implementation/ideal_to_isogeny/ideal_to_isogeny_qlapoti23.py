@@ -54,7 +54,10 @@ class IdealToIsogenyQlapotis23:
         e2 = self.e2_target - 2
         e3 = self.e3_target
 
+        # Temporary measure
+        # TODO : update for non-gluing case in https://eprint.iacr.org/2025/1604
         mu1, mu2, d1, d2, θ, N, I, betaij, e1, e2 = qlapoti23(J, e2, e3, allow_diags = self.allow_diags, odd_norm_output = True)
+            
 
         assert mu1 in self.O0
         assert mu2 in self.O0
@@ -76,23 +79,23 @@ class IdealToIsogenyQlapotis23:
         return self.representation
 
     def _precomp_pairings(self, theta, d1, type_end):
-        ew0 = self.precomps.eWP0Q0
-        P0, Q0 = self.precomps.basis
+        ew0 = self.precomps.eWP0Q023
+        P0, Q0 = self.precomps.basis23
         
         eP2Q2 = ew0**(theta.reduced_norm())
         eP1Q1 = ew0**(d1**2)
 
-        pair_map = self.precomps.pair_map
+        pair_map23 = self.precomps.pair_map23
         if type_end == 1:
             # Need e(P1, Q1)e(P1, Q2)e(P2, Q1)e(P2, Q2)
             x1, x2, x3, x4 = list(theta)
             eP0Q2 = (
-                pair_map['11']**x1 * pair_map['1i']**x2 *
-                pair_map['1j']**x3 * pair_map['1k']**x4
+                pair_map23['11']**x1 * pair_map23['1i']**x2 *
+                pair_map23['1j']**x3 * pair_map23['1k']**x4
             )
             eP2Q0 = (
-                pair_map['11']**x1 * pair_map['i1']**x2 *
-                pair_map['j1']**x3 * pair_map['k1']**x4
+                pair_map23['11']**x1 * pair_map23['i1']**x2 *
+                pair_map23['j1']**x3 * pair_map23['k1']**x4
             )
 
             eP2Q1 = (eP2Q0 ** d1)
@@ -105,12 +108,12 @@ class IdealToIsogenyQlapotis23:
             # Need e(iP1, iQ1)*e(iP1, Q2) * e(P2, iQ1) * e(P2, Q2)
             x1, x2, x3, x4 = list(theta)
             eiP0Q2 = (
-                pair_map['i1']**x1 * pair_map['ii']**x2 *
-                pair_map['ij']**x3 * pair_map['ik']**x4
+                pair_map23['i1']**x1 * pair_map23['ii']**x2 *
+                pair_map23['ij']**x3 * pair_map23['ik']**x4
             )
             eP2iQ0 = (
-                pair_map['1i']**x1 * pair_map['ii']**x2 *
-                pair_map['ji']**x3 * pair_map['ki']**x4
+                pair_map23['1i']**x1 * pair_map23['ii']**x2 *
+                pair_map23['ji']**x3 * pair_map23['ki']**x4
             )
 
             eP2iQ1 = (eP2iQ0 ** d1)
@@ -123,8 +126,7 @@ class IdealToIsogenyQlapotis23:
 
     def fix_end(self, ker_Phi, e1, e2, d1, theta):
         precomps = self.precomps
-        P0, Q0 = precomps.basis
-        e = precomps.e
+        P0, Q0 = precomps.basis23
 
         (P1, P2), (Q1, Q2) = ker_Phi
 
@@ -132,7 +134,8 @@ class IdealToIsogenyQlapotis23:
         # t0 = time.time()
 
         prods = []
-        f1 = f
+        f1 = e1
+        f2 = e2
 
         theta2 = tuple(i % 2 for i in list(theta))
         kk = {
@@ -152,10 +155,11 @@ class IdealToIsogenyQlapotis23:
             thetap = d1*i + theta
             
         num_prods = thetap.reduced_norm().valuation(2) - 2
+        num_prods3 = thetap.reduced_norm().valuation(3)
+        print(f'num_prods : {num_prods}, num_prods3 : {num_prods3}')
         f1 -= 1
         
 
-        
         P1, P2 = evaluate_endomorphism_type(type_end, P1, P2)
         Q1, Q2 = evaluate_endomorphism_type(type_end, Q1, Q2)
 
@@ -169,45 +173,55 @@ class IdealToIsogenyQlapotis23:
         
         # Product steps
         prod_type = None
-        if num_prods:
-            if e_prodtype[0] ** (2**f1) == e_prodtype[1] ** (2**f1):
+        if num_prods or num_prods3:
+            if e_prodtype[0] ** (2**(f1+2) * 3**f2) == e_prodtype[1] ** (2**(f1+2) * 3**f2):
                 prod_type = 'Q'
             else:
                 prod_type = 'P'
 
+        print(f'prod_type : {prod_type}')
         # t2 = time.time()
         # print(f'Prod detect: {t2-t1:.3f}s')
         # print(f"We have to do {num_prods} product(s)...")
 
         if prod_type == 'P':
-            cof2 = 2**(f1 - num_prods)
+            cof2 = 2**(f1 - num_prods) * 3**(f2 - num_prods3)
             K1 = cof2 * P1
             K2 = cof2 * Q2
 
         elif prod_type == 'Q':
-            cof2 = 2**(f1 - num_prods)
+            cof2 = 2**(f1 - num_prods) * 3**(f2 - num_prods3)
             K1 = cof2 * Q1
             K2 = cof2 * P2
 
-        if num_prods > 0:
-            K1._order = ZZ(2**num_prods)
-            K1._order = ZZ(2**num_prods)
+        if num_prods > 0 or num_prods3 > 0:
+            K1, K2 = 4 * K1, 4 * K2
+            # K1_order, K2_order = K1.order(), K2.order()
+            # assert K1_order == K2_order
+            # K1, K2 = (K1_order / (2**num_prods)) * K1, (K2_order / (2**num_prods)) * K2
+            # assert K1.order() == K2.order() == 2**num_prods, f"K1.order = {K1.order()}, K2.order = {K2.order()}"
+            # K1._order = ZZ(2**num_prods)
+            # K2._order = ZZ(2**num_prods)
             _phi1 = K1.curve().isogeny(K1)
             _phi2 = K2.curve().isogeny(K2)
             prods.append([_phi1, _phi2])
             P1, Q1 = _phi1(P1), _phi1(Q1)
             P2, Q2 = _phi2(P2), _phi2(Q2)
             f1 -= num_prods
+            f2 -= num_prods3
 
         # t3 = time.time()
         # print(f'Do prod time: {t3 - t2:.3f}s')
+        assert P1.order() == P2.order() == 2**(f1 + 2) * 3**f2, f"\nf1={f1}\nP1.order() = {P1.order().factor()}\nP2.order() = {P2.order().factor()}"
+        assert Q1.order() == Q2.order() == 2**(f1 + 2) * 3**f2, f"\nf1={f1}\nQ1.order() = {Q1.order().factor()}\nQ2.order() = {Q2.order().factor()}"
+        
         ker_Phi = ((P1, P2), (Q1, Q2))
 
         # Non-product steps
         Phi = Dim23Isogeny(
                 ker_Phi,
-                f1,
-                extra = self.precomps.extra_torsion_clapotis,
+                f1, f2,
+                extra = 2,
                 endomorphisms = ends,
                 diagonal_isogenies = prods,
                 curves = [P0.curve() for _ in range(2)],
@@ -215,7 +229,7 @@ class IdealToIsogenyQlapotis23:
 
         EI, PI, QI = Phi.embedded_isogeny(
                 basis=(P0, Q0),
-                degree=d1, e=e, ePQ=precomps.eP0Q0(e))
+                degree=d1, ePQ=precomps.eWP0Q023)
         # t4 = time.time()
         # print(f'HD time: {t4-t3:.3f}s')
         return EI, PI, QI
@@ -253,21 +267,20 @@ class IdealToIsogenyQlapotis23:
         P_, Q_ = self.precomps.evaluate_matrix23(theta_m)
 
         # Compute the isogeny corresponding to I1 = I*(mu1_bar)/n(I)
-        P1 = d1 * R0
-        P2 = P_
-        Q1 = d1 * S0
-        Q2 = Q_
+        P1 = 2**(a - e1 - 2) * d1 * R0
+        P2 = 2**(a - e1 - 2) * P_
+        Q1 = 2**(a - e1 - 2) * d1 * S0
+        Q2 = 2**(a - e1 - 2) * Q_
         assert (d1 % 3 != 0)
         assert (d2 % 3 != 0)
-        print(f"d1 : {d1}\nd2 : {d2}")
 
         ker_Phi = ((P1, P2), (Q1, Q2))
-        assert (P1.order() == 2**(e1 + 2) * 3**e2), "P1.order = {0}".format(P1.order().factor())
-        assert (P2.order() == 2**(e1 + 2) * 3**e2), "P2.order = {0}".format(P2.order().factor())
-        assert (Q1.order() == 2**(e1 + 2) * 3**e2), "Q1.order = {0}".format(Q1.order().factor())
-        assert (Q2.order() == 2**(e1 + 2) * 3**e2), "Q2.order = {0}".format(Q2.order().factor())
-        pair_e = (4*P1).weil_pairing((4*Q1), 2**e1 * 3**e2) * (4*P2).weil_pairing(4*Q2, 2**e1 * 3**e2)
-        assert pair_e == 1, f"pairing : {pair_e}"
+        # assert (P1.order() == 2**(e1 + 2) * 3**e2), "P1.order = {0}".format(P1.order().factor())
+        # assert (P2.order() == 2**(e1 + 2) * 3**e2), "P2.order = {0}".format(P2.order().factor())
+        # assert (Q1.order() == 2**(e1 + 2) * 3**e2), "Q1.order = {0}".format(Q1.order().factor())
+        # assert (Q2.order() == 2**(e1 + 2) * 3**e2), "Q2.order = {0}".format(Q2.order().factor())
+        # pair_e = (4*P1).weil_pairing((4*Q1), 2**e1 * 3**e2) * (4*P2).weil_pairing(4*Q2, 2**e1 * 3**e2)
+        # assert pair_e == 1, f"pairing : {pair_e}"
         # Cmon sage
         p = Q1.curve().base().characteristic()
 
@@ -277,6 +290,7 @@ class IdealToIsogenyQlapotis23:
 
         if end_to_fix:
             t0 = time.time()
+            print("fix_end!")
             EI, PI, QI = self.fix_end(ker_Phi, e1, e2, d1, theta)
             t1 = time.time()
             # print(f'Hd with stuff: {t1 - t0:.3f}s')

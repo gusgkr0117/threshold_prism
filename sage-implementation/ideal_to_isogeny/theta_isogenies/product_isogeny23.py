@@ -144,13 +144,13 @@ class EllipticProductIsogeny23(Morphism):
 
         TTp1, TTp2 = kernel
         for f in isogeny_chain:
-            if isinstance(f, GluingThetaIsogeny):
-                print(f'TTp1 : {TTp1}\nTTp2 : {TTp2}')
+            # if isinstance(f, GluingThetaIsogeny):
+            #     print(f'TTp1 : {TTp1}\nTTp2 : {TTp2}')
             TTp1, TTp2 = f(TTp1), f(TTp2)
             assert not ( TTp1.is_zero() or TTp2.is_zero() ), f"TTp1 : {TTp1}\nTTp2 : {TTp2}"
         tmp1 = TTp1.triple_iter(self.b).double_iter(2)
         tmp2 = TTp2.triple_iter(self.b).double_iter(2)
-        assert tmp1.is_zero() and tmp2.is_zero()
+        assert tmp1.is_zero() and tmp2.is_zero(), f"\ntmp1 : {tmp1}\ntmp2 : {tmp2}"
 
         # 2. computing (3^b,3^b)-isogeny chain
         Tp1, Tp2 = TTp1.double_iter(2), TTp2.double_iter(2)

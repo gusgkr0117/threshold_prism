@@ -60,12 +60,13 @@ Future Work:
 """
 
 # Sage imports
-from sage.all import prod, ZZ, PolynomialRing
+from sage.all import prod, ZZ, PolynomialRing, EllipticCurve
 from sage.rings.generic import ProductTree
 
 # Local imports
 from montgomery_isogenies.kummer_line import KummerLine, KummerPoint, pari
 
+import json
 # =================================================== #
 # Generic class for creating an isogeny between       #
 # KummerLines of Montgomery model curves using x-only #
@@ -782,6 +783,8 @@ class KummerLineIsogeny(KummerLineIsogeny_Generic):
             domain, kernel, degree, threshold=threshold
         )
 
+        self._kernel = kernel
+
         # Make immutable
         self._phis = tuple(self._phis)
 
@@ -827,3 +830,23 @@ class KummerLineIsogeny(KummerLineIsogeny_Generic):
         result._codomain = result._phis[-1].codomain()
 
         return result
+
+    def to_list(self):
+#         result = f'''A = {self._domain.montgomery_curve().a2()}
+# E = EllipticCurve(Fp2, [0, A, 0, 1, 0])
+# _E = KummerLine(E)
+# _P = _E({self._kernel.X()})
+# {name} = KummerLineIsogeny(_E, _P, {self._degree})
+# '''
+        a = self._domain.montgomery_curve().a2()
+        px = self._kernel.x()
+        return [a, px, self._degree]
+    
+    @staticmethod
+    def from_list(x):
+        a, px, degree = x
+        Fp2 = a.parent()
+        E = EllipticCurve(Fp2, [0, a, 0, 1, 0])
+        _E = KummerLine(E)
+        _P = _E(px)
+        return KummerLineIsogeny(_E, _P, degree)

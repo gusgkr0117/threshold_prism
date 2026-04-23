@@ -138,7 +138,7 @@ class KummerLine:
         String representation of the class
         """
         if self.a():
-            return f"Kummer line of the Montgomery curve y^2 = x^3 + {self.a()._coeff_repr()}*x^2 + x over {self.base_ring()}"
+            return f"Kummer line of the Montgomery curve y^2 = x^3 + {self.a().Str()}*x^2 + x over {self.base_ring()}"
         else:
             return f"Kummer line of the Montgomery curve y^2 = x^3 + x over {self.base_ring()}"
 

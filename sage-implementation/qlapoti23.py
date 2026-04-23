@@ -237,7 +237,7 @@ def qlapoti23(J, e1, e2, allow_diags = True, odd_norm_output = False, stats = Fa
                 mu2 = (mu1 - i*mu2)/2
                 mu1 = temp
         
-            e = e-1 
+            e1 = e1-1 
             θ = mu2 * mu1.conjugate() / N
         else:
             # Check odd norm
