@@ -142,3 +142,13 @@ def discrete_log_pair_power_two(pair_a, pair_b, pair_PQ, e, window=None):
         b = windowed_pohlig_hellman(pair_b, pair_PQ, e, window)
     return a,b
 
+def discrete_log_pair_power_three(pair_a, pair_b, pair_PQ, e, window=None):
+    if window is None:
+        D = 3**e
+        a = discrete_log_pari(pair_a, pair_PQ, D)
+        b = discrete_log_pari(pair_b, pair_PQ, D)
+    else:
+        a = windowed_pohlig_hellman(pair_a, pair_PQ, e, window)
+        b = windowed_pohlig_hellman(pair_b, pair_PQ, e, window)
+    return a,b
+

@@ -195,7 +195,7 @@ def equivalent_left_ideals(I, J):
     TODO: write a function which does this without
           conjugates?
     """
-    return I.conjugate().is_equivalent(J.conjugate())
+    return I.conjugate().is_right_equivalent(J.conjugate())
 
 
 def equivalent_right_ideals(I, J):
@@ -203,7 +203,7 @@ def equivalent_right_ideals(I, J):
     Sage can do this for us already only making a
     wrapped so it matches the above.
     """
-    return I.is_equivalent(J)
+    return I.is_right_equivalent(J)
 
 
 def invert_ideal(I):

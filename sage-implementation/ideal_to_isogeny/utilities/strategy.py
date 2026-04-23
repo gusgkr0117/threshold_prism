@@ -36,7 +36,7 @@ import sys
 sys.setrecursionlimit(1500)
 
 # fmt: off
-def optimised_strategy(n):
+def optimised_strategy(n, is33 = False):
     """
     A modification of
 
@@ -52,8 +52,12 @@ def optimised_strategy(n):
     """
 
     # Define the costs and initalise the nodes which we store during doubling
-    left_cost = (47, 333)       # (regular_cost, left_branch_cost) Double
-    right_cost = (24, 250)  # (regular_cost, first_right_cost) Images
+    if is33:
+        left_cost = (26, 26) # Triple
+        right_cost = (28, 28) # Evals
+    else:
+        left_cost = (47, 333)       # (regular_cost, left_branch_cost) Double
+        right_cost = (24, 250)  # (regular_cost, first_right_cost) Images
     checkpoints = ({}, {})  # (inner, left edge)
 
     @functools.cache

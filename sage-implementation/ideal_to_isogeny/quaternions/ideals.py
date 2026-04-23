@@ -183,6 +183,7 @@ def small_equivalent_ideal(I, reduced_basis_elements=None):
     b0 = reduced_basis_elements[0]
     if b0.reduced_norm() == nI**2:
         return I
+    print(b0.conjugate() / nI)
     return I * I.right_order().left_ideal([b0.conjugate() / nI])
 
 
@@ -195,7 +196,7 @@ def equivalent_left_ideals(I, J):
     TODO: write a function which does this without
           conjugates?
     """
-    return I.conjugate().is_equivalent(J.conjugate())
+    return I.conjugate().is_left_equivalent(J.conjugate())
 
 
 def equivalent_right_ideals(I, J):
@@ -203,7 +204,7 @@ def equivalent_right_ideals(I, J):
     Sage can do this for us already only making a
     wrapped so it matches the above.
     """
-    return I.is_equivalent(J)
+    return I.is_right_equivalent(J)
 
 
 def invert_ideal(I):

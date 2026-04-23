@@ -30,6 +30,7 @@ class ThetaStructure:
         self._base_ring = cm.common_parent(*(c.parent() for c in null_point))
         self._point = ThetaPoint
         self._precomputation = None
+        self._triple_constants = None
 
         self._null_point = self._point(self, null_point)
 
@@ -72,6 +73,17 @@ class ThetaStructure:
         the theta null point of the theta structure
         """
         return self.null_point().squared_theta()
+
+    def triple_constants(self):
+        a, b, c, d = self.coords()
+        a, b, c, d = a, c, b, d 
+        if self._triple_constants is None:
+            SO = ThetaPoint.to_squared(a, b, c, d)
+            HSO = ThetaPoint.to_hadamard_fast_kummer(*SO)
+            K3 = ThetaPoint.to_invert4constants(a, b, c, d)
+            K4 = ThetaPoint.to_invert4constants(*HSO)
+            self._triple_constants = ((a, b, c, d), SO, HSO, K3, K4)
+        return self._triple_constants
 
     def _arithmetic_precomputation(self):
         """
@@ -206,6 +218,20 @@ class ThetaPoint:
         ThetaStrcuture
         """
         return self == self.parent().zero()
+    
+    @staticmethod
+    def to_fourwaymult(v, w):
+        return [v[0] * w[0], v[1] * w[1], v[2] * w[2], v[3] * w[3]]
+
+    @staticmethod
+    def to_invert4constants(a, b, c, d):
+        pi1 = c * d
+        pi2 = pi1 * a
+        pi1 = pi1 * b
+        pi3 = a * b
+        pi4 = pi3 * c
+        pi3 = pi3 * d
+        return (pi1, pi2, pi3, pi4)
 
     @staticmethod
     def to_hadamard(x_00, x_10, x_01, x_11):
@@ -217,6 +243,16 @@ class ThetaPoint:
         x_01, x_11 = (x_01 + x_11, x_01 - x_11)
         return x_00 + x_01, x_10 + x_11, x_00 - x_01, x_10 - x_11
 
+    @staticmethod
+    def to_hadamard_fast_kummer(x_00, x_10, x_01, x_11):
+        """
+        Compute the Hadamard transformation of four coordinates, using recursive
+        formula.
+        """
+        x_00, x_10 = (x_00 + x_10, x_00 - x_10)
+        x_01, x_11 = (x_01 + x_11, x_01 - x_11)
+        return x_00 + x_01, x_00 - x_01, x_10 + x_11, x_10 - x_11
+
     def hadamard(self):
         """
         Compute the Hadamard transformation of this element
@@ -224,6 +260,13 @@ class ThetaPoint:
         if self._hadamard is None:
             self._hadamard = self.to_hadamard(*self.coords())
         return self._hadamard
+    
+    @staticmethod
+    def to_squared(x, y, z, t):
+        return x*x, y*y, z*z, t*t
+    
+    def squared(self):
+        return ThetaPoint.to_squared(*self.coords())
 
     @staticmethod
     def to_squared_theta(x, y, z, t):
@@ -233,6 +276,14 @@ class ThetaPoint:
         """
         return ThetaPoint.to_hadamard(x * x, y * y, z * z, t * t)
 
+    @staticmethod
+    def to_squared_theta_fast_kummer(x, y, z, t):
+        """
+        Square the coordinates and then compute the Hadamard transform of the
+        input
+        """
+        return ThetaPoint.to_hadamard_fast_kummer(x * x, y * y, z * z, t * t)
+
     def squared_theta(self):
         """
         Compute the Squared Theta transformation of this element
@@ -241,6 +292,25 @@ class ThetaPoint:
         if self._squared_theta is None:
             self._squared_theta = self.to_squared_theta(*self.coords())
         return self._squared_theta
+
+    def triple(self):
+        TC = self.parent().triple_constants()
+        a, b, c, d = self.coords()
+        a, b, c, d = a, c, b, d
+        R = ThetaPoint.to_squared_theta_fast_kummer(a, b, c, d)
+        Q = ThetaPoint.to_squared(*R)
+        Q = ThetaPoint.to_fourwaymult(Q, TC[4])
+        Q = ThetaPoint.to_hadamard_fast_kummer(*Q)
+        Q = ThetaPoint.to_fourwaymult(Q, TC[3])
+        Q = ThetaPoint.to_squared(*Q)
+        Q = ThetaPoint.to_hadamard_fast_kummer(*Q)
+        S = ThetaPoint.to_fourwaymult(R, TC[4])
+        Q = ThetaPoint.to_fourwaymult(Q,S)
+        Q = ThetaPoint.to_hadamard_fast_kummer(*Q)
+        P = ThetaPoint.to_invert4constants(a, b, c, d)
+        Q = ThetaPoint.to_fourwaymult(Q,P)
+        a, b, c, d = Q
+        return self._parent((a, c, b, d))
 
     def double(self):
         """
@@ -330,9 +400,29 @@ class ThetaPoint:
         scaled_coords = (n * x, n * y, n * z, n * t)
         return self._parent(scaled_coords)
 
+    def triple_iter(self, m):
+        """
+        Compute [3^m] Self
+
+        NOTE: Assumes that no coordinate is zero at any point during the tripling
+        """
+        if not isinstance(m, Integer):
+            try:
+                m = Integer(m)
+            except:
+                raise TypeError(f"Cannot coerce input scalar {m = } to an integer")
+
+        if m.is_zero():
+            return self.parent().zero()
+
+        P1 = self
+        for _ in range(m):
+            P1 = P1.triple()
+        return P1
+
     def double_iter(self, m):
         """
-        Compute [2^n] Self
+        Compute [2^m] Self
 
         NOTE: Assumes that no coordinate is zero at any point during the doubling
         """
@@ -418,3 +508,51 @@ class ThetaPoint:
 
     def __repr__(self):
         return f"Theta point with coordinates: {self.coords()}"
+
+
+# class ThetaPointFastKummer:
+#     def __init__(self, parent, coords):
+#         if not isinstance(parent, ThetaStructure):
+#             raise ValueError
+        
+#         self._parent = parent
+#         self._coords = tuple(coords)
+
+#         self._hadamard = None
+#         self._squared_theta = None
+
+#     def parent(self):
+#         return self._parent
+
+#     def theta(self):
+#         return self.parent()
+    
+#     def coords(self):
+#         return self._coords
+    
+#     def is_zero(self):
+#         return self == self.parent().zero()
+    
+#     @staticmethod
+#     def to_fourwaymult(v, w):
+#         return [v[0] * w[0], v[1] * w[1], v[2] * w[2], v[3] * w[3]]
+
+#     @staticmethod
+#     def to_invert4constants(a, b, c, d):
+#         pi1 = b * c
+#         pi2 = pi1 * a
+#         pi1 = pi1 * b
+#         pi3 = a * b
+#         pi4 = pi3 * c
+#         pi3 = pi3 * d
+#         return (pi1, pi2, pi3, pi4)
+    
+#     @staticmethod
+#     def to_hadamard(x_00, x_10, x_01, x_11):
+#         """
+#         Compute the Hadamard transformation of four coordinates, using recursive
+#         formula.
+#         """
+#         x_00, x_10 = (x_00 + x_10, x_00 - x_10)
+#         x_01, x_11 = (x_01 + x_11, x_01 - x_11)
+#         return x_00 + x_01, x_00 - x_01, x_10 + x_11, x_10 - x_11

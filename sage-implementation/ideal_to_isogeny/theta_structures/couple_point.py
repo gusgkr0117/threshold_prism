@@ -28,6 +28,13 @@ class CouplePoint:
 
     def order(self):
         return (self.P1.order(), self.P2.order())
+    
+    def triple(self):
+        return ZZ(3) * self
+    
+    def triple_iter(self, n):
+        m = ZZ(3**n)
+        return m * self
 
     def double(self):
         """

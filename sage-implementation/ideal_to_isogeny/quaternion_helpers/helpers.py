@@ -101,7 +101,7 @@ def reduced_ideal(I, return_elt=False):
     reduced_basis_elements = reduced_basis(I)
     beta = reduced_basis_elements[0]
     J = I*(beta.conjugate()/I.norm())
-    assert J.conjugate().is_equivalent(I.conjugate())
+    assert J.conjugate().is_right_equivalent(I.conjugate())
     if return_elt:
         return J, beta
     return J
@@ -120,7 +120,7 @@ def reduced_ideal_odd(I):
             beta = reduced_basis_elements[c]
 
     J = I*(beta.conjugate()/I.norm())
-    assert J.conjugate().is_equivalent(I.conjugate())
+    assert J.conjugate().is_right_equivalent(I.conjugate())
     return J
 
 def reduced_ideal_prime(I):
@@ -137,7 +137,7 @@ def reduced_ideal_prime(I):
             beta = reduced_basis_elements[c]
 
     J = I*(beta.conjugate()/I.norm())
-    assert J.conjugate().is_equivalent(I.conjugate())
+    assert J.conjugate().is_right_equivalent(I.conjugate())
     return J
 
 def reduced_basis_from_gens(gens, Quat):   
@@ -408,7 +408,7 @@ def find_correct_pushforward_endo(I, J):
     J_prime = pushforward(I, O*theta)
     alpha = compute_isomorphism(J_prime.left_order(), J.left_order())
     J_prime = alpha**(-1)*J_prime*alpha
-    assert J_prime.conjugate().is_equivalent(J.conjugate())
+    assert J_prime.conjugate().is_right_equivalent(J.conjugate())
     return theta
 
 def find_correct_pushforward(I, J):

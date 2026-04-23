@@ -18,17 +18,18 @@ sys.path.insert(0, '../..')
 from ideal_to_isogeny.endomorphisms import FullrepresentInteger, iota
 from utilities.supersingular import (
         torsion_basis_with_pairing_2e, torsion_basis_with_pairing_3f)
-from utilities.discrete_log import discrete_log_pair_power_two
+from utilities.discrete_log import discrete_log_pair_power_two, discrete_log_pair_power_three
 from utilities.pairing import (
         weil_pairing_pari, tate_pairing_pari, weil_pairing_biextension,
         tate_pairing_biextension)
 from utilities.strategy import optimised_strategy
 # import params
 from montgomery_isogenies.kummer_line import KummerLine
+from others.utilities.discrete_log import BiDLP
 
 
 class Precomputations_PRISM:
-    def __init__(self, p, c, role='signer', a = 'max', u = 'max', E = None):
+    def __init__(self, p, c, role='signer', a = 'max', b = 'max', u = 'max', E = None):
         self.p = ZZ(p)
         self.c = c
         e = (self.p + 1).valuation(2)
@@ -36,6 +37,13 @@ class Precomputations_PRISM:
             a = e
         assert a in ZZ and a <= e and a > 0
         self.a = a
+
+        e = (self.p + 1).valuation(3)
+        if b == 'max':
+            b = e
+        assert b in ZZ and b <= e and b > 0
+        self.b = b
+
         if u == 'max':
             u = e - a
         else:
@@ -64,6 +72,8 @@ class Precomputations_PRISM:
             self.precomputations_signer_SIDH(self.p)
         elif role == 'pusher':
             self.precomputations_pusher(self.p, E = E)
+        elif role == 'threshold':
+            self.precomputations_threshold(self.p)
 
         self.precompute_strategies()
 
@@ -122,7 +132,11 @@ class Precomputations_PRISM:
         P0, Q0, eWP0Q0 = torsion_basis_with_pairing_2e(E0, a)
         self.basis = (P0, Q0)
 
+        R0, S0, eWR0S0 = torsion_basis_with_pairing_3f(E0, self.b)
+        self.basis3 = (R0, S0)
+
         self.eWP0Q0 = eWP0Q0
+        self.eWR0S0 = eWR0S0
         self.eTP0Q0 = self.tate_pairing(P0, Q0, a)
 
         self.pair_map = {}
@@ -150,10 +164,25 @@ class Precomputations_PRISM:
         Q0_1k2 = E0(Q0_p + E0_K(-Q0_p[0] ** p, i * Q0_p[1] ** p))
 
         self.endomorphism_images = (P0_ij2, Q0_ij2, P0_1k2, Q0_1k2)
+        
+        R0_K, S0_K = E0_K(R0), E0_K(S0)
+        R0_p = R0_K.division_points(3)[0]
+        S0_p = S0_K.division_points(3)[0]
+        R0_ij2 = E0(E0_K(-R0_p[0], i * R0_p[1]) + E0_K(R0_p[0] ** p, R0_p[1] ** p))
+        S0_ij2 = E0(E0_K(-S0_p[0], i * S0_p[1]) + E0_K(S0_p[0] ** p, S0_p[1] ** p))
+        R0_1k2 = E0(R0_p + E0_K(-R0_p[0] ** p, i * R0_p[1] ** p))
+        S0_1k2 = E0(S0_p + E0_K(-S0_p[0] ** p, i * S0_p[1] ** p))
+        self.endomorphism_images3 = (R0_ij2, S0_ij2, R0_1k2, S0_1k2)
+        
         self.matrix_id = matrix(Zmod(D), ((1,0),(0,1)))
         self.matrix_iota = matrix(Zmod(D), self.canonical_BiDLPs((iota(P0), iota(Q0))))
         self.matrix_ij2 = matrix(self.canonical_BiDLPs((P0_ij2, Q0_ij2)))
         self.matrix_1k2 = matrix(self.canonical_BiDLPs((P0_1k2, Q0_1k2)))
+        
+        self.matrix3_id = matrix(Zmod(D), ((1,0),(0,1)))
+        self.matrix3_iota = matrix(Zmod(D), self.canonical_BiDLP3s((iota(R0), iota(S0))))
+        self.matrix3_ij2 = matrix(self.canonical_BiDLP3s((R0_ij2, S0_ij2)))
+        self.matrix3_1k2 = matrix(self.canonical_BiDLP3s((R0_1k2, S0_1k2)))
 
     def precomputations_signer_SIDH(self, p):
         assert p % 4 == 3
@@ -175,6 +204,110 @@ class Precomputations_PRISM:
         self._P3 = self._E0(P3[0])
         self._Q3 = self._E0(Q3[0])
         self._PQ3 = self._E0(self.PQ3[0])
+
+    def precomputations_threshold(self, p):
+        self.random_ideal_has_prime_norm = True
+        ## Clapotis:
+        self.sums = False #try to find a sum of 2 squares in IdealToIsogenyClapotis?
+
+        ## FixedDegreeIsogeny:
+        self.fixed_degree_isogeny_truly_random = False # Do we allow our dim 2 isogeny from FixedDegreeIsogeny to start with endomorphisms and diagonal isogenies?
+
+        ## How to enumerate basis of ideals
+        self.enumerate_basis_random = False
+        self.enumerate_basis_random_bound = 5
+        self.enumerate_basis_random_max_attempts = 10000
+        self.enumerate_basis_bound = 10 #for enumerate_basis_random = False
+        self.enumerate_basis_clapotis_random = self.enumerate_basis_random
+        self.enumerate_basis_clapotis_bound = self.enumerate_basis_bound
+
+        a = self.a
+        b = self.b
+        D = self.D
+
+        B = QuaternionAlgebra(-1, -p)
+        self.B = B
+        i, j, k = B.gens()
+        self.O0 = B.quaternion_order([1, i, (i + j) / 2, (1 + k) / 2])
+
+        F = GF(p**2, name="i", modulus=[1, 0, 1])
+        E0 = EllipticCurve(F, [1, 0])
+        E0.set_order((p + 1) ** 2)
+        self.E0 = E0
+
+        # Sage tricks to precompute "fast"
+        # Proper implementation won't have them
+        K = F.extension(2, name="T")
+        E0_K = E0.base_extend(K)
+        self._E0_K = E0_K
+        i = F.gen()
+        assert i ** 2 == -1
+        self.F = F
+        self.sqrt_minus_one = i
+
+        P0, Q0, eWP0Q0 = torsion_basis_with_pairing_2e(E0, a)
+        self.basis = (P0, Q0)
+
+        R0, S0, eWR0S0 = torsion_basis_with_pairing_3f(E0, b)
+        self.basis3 = (R0, S0)
+        assert R0.order() == 3**b 
+        assert S0.order() == 3**b
+
+        X0, Y0 = P0 + R0, Q0 + S0
+        self.basis23 = (X0, Y0)
+        self.eWP0Q023 = (X0).weil_pairing(Y0, 2**a * 3**b)
+
+        self.eWP0Q0 = eWP0Q0
+        self.eTP0Q0 = self.tate_pairing(P0, Q0, a)
+        self.eWR0S0 = eWR0S0
+
+        self.pair_map = {}
+        self.pair_map23 = {}
+        _maps = {
+                '1':lambda x: x,
+                'i':self.iota,
+                'j':self.pi,
+                'k':lambda x: self.iota(self.pi(x))
+        }
+        for aa in ['1', 'i', 'j', 'k']:
+            P0a = _maps[aa](P0)
+            X0a = _maps[aa](X0)
+            for bb in ['1', 'i', 'j', 'k']:
+                Q0b = _maps[bb](Q0)
+                Y0b = _maps[bb](Y0)
+                self.pair_map[aa+bb] = self.weil_pairing(P0a, Q0b, a)
+                self.pair_map23[aa+bb] = self.weil_pairing(X0a, Y0b, b)
+
+        P0_K, Q0_K = E0_K(P0), E0_K(Q0)
+        X0_K, Y0_K = E0_K(X0), E0_K(Y0)
+
+        P0_p = P0_K.division_points(2)[0]
+        Q0_p = Q0_K.division_points(2)[0]
+        X0_p = X0_K.division_points(2)[0]
+        Y0_p = Y0_K.division_points(2)[0]
+
+        P0_ij2 = E0(E0_K(-P0_p[0], i * P0_p[1]) + E0_K(P0_p[0] ** p, P0_p[1] ** p))
+        Q0_ij2 = E0(E0_K(-Q0_p[0], i * Q0_p[1]) + E0_K(Q0_p[0] ** p, Q0_p[1] ** p))
+        X0_ij2 = E0(E0_K(-X0_p[0], i * X0_p[1]) + E0_K(X0_p[0] ** p, X0_p[1] ** p))
+        Y0_ij2 = E0(E0_K(-Y0_p[0], i * Y0_p[1]) + E0_K(Y0_p[0] ** p, Y0_p[1] ** p))
+
+        P0_1k2 = E0(P0_p + E0_K(-P0_p[0] ** p, i * P0_p[1] ** p))
+        Q0_1k2 = E0(Q0_p + E0_K(-Q0_p[0] ** p, i * Q0_p[1] ** p))
+        X0_1k2 = E0(X0_p + E0_K(-X0_p[0] ** p, i * X0_p[1] ** p))
+        Y0_1k2 = E0(Y0_p + E0_K(-Y0_p[0] ** p, i * Y0_p[1] ** p))
+
+        self.endomorphism_images = (P0_ij2, Q0_ij2, P0_1k2, Q0_1k2)
+        self.endomorphism_images23 = (X0_ij2, Y0_ij2, X0_1k2, Y0_1k2)
+        self.matrix_id = matrix(Zmod(D), ((1,0),(0,1)))
+        self.matrix_iota = matrix(Zmod(D), self.canonical_BiDLPs((iota(P0), iota(Q0))))
+        self.matrix_ij2 = matrix(self.canonical_BiDLPs((P0_ij2, Q0_ij2)))
+        self.matrix_1k2 = matrix(self.canonical_BiDLPs((P0_1k2, Q0_1k2)))
+        self.matrix23_id = matrix(Zmod(2**a * 3**b), ((1,0),(0,1)))
+        self.matrix23_iota = matrix(Zmod(2**a * 3**b), self.canonical_BiDLP23s((iota(X0), iota(Y0))))
+        self.matrix23_ij2 = matrix(self.canonical_BiDLP23s((X0_ij2, Y0_ij2)))
+        self.matrix23_1k2 = matrix(self.canonical_BiDLP23s((X0_1k2, Y0_1k2)))
+
+
 
     def precomputations_pusher(self, p, E):
         # self.precomputations_signer(p)
@@ -271,6 +404,18 @@ class Precomputations_PRISM:
         I = self.random_ideal_of_given_norm(N, randomness=randomness, prime=prime)
         return I
 
+    def matrix_theta23(self, θ):
+        """
+        Given an endomorphism θ, return the matrix of θ on the canonical
+        basis P0, Q0
+        """
+        x1, x2, x3, x4 = θ.coefficient_tuple()
+        c1 = ZZ(x1  - x4)
+        c2 = ZZ(x2 - x3)
+        c3 = ZZ(2 * x3)
+        c4 = ZZ(2 * x4)
+        return c1 * self.matrix23_id + c2 * self.matrix23_iota + c3 * self.matrix23_ij2 + c4 * self.matrix23_1k2
+
     def matrix_theta(self, θ):
         """
         Given an endomorphism θ, return the matrix of θ on the canonical
@@ -283,11 +428,34 @@ class Precomputations_PRISM:
         c4 = ZZ(2 * x4)
         return c1 * self.matrix_id + c2 * self.matrix_iota + c3 * self.matrix_ij2 + c4 * self.matrix_1k2
 
+    def evaluate_matrix23(self, M, basis = None):
+        if basis is None:
+            basis = self.basis23
+        return (M[0,0] * basis[0] + M[0,1] * basis[1],
+                M[1,0] * basis[0] + M[1,1] * basis[1])
+
     def evaluate_matrix(self, M, basis = None):
         if basis is None:
             basis = self.basis
         return (M[0,0] * basis[0] + M[0,1] * basis[1],
                 M[1,0] * basis[0] + M[1,1] * basis[1])
+
+    def BiDLP3(self, R, P, Q, e=None, ePQ=None):
+        '''
+            computes a,b such that R = aP + bQ where
+            P, Q are a 2^e torision basis.
+        '''
+        if e is None:
+            e = self.e
+        if ePQ:
+            pair_PQ = ePQ
+        else:
+            pair_PQ = self.pairing3(P, Q, e)
+
+        pair_a = self.pairing3(R, Q, e)
+        pair_b = self.pairing3(R, -P, e)
+        a, b = discrete_log_pair_power_three(pair_a, pair_b, pair_PQ, e, window=self.window)
+        return a, b
 
     def BiDLP(self, R, P, Q, e=None, ePQ=None):
         '''
@@ -338,6 +506,27 @@ class Precomputations_PRISM:
     def canonical_BiDLPs(self, Ps):
         return (self.canonical_BiDLP(P) for P in Ps)
 
+    def canonical_BiDLP23(self, P):
+        """
+        Return the vector BiDLP with respect to the canonical basis of 3^b-torsion
+        Mostly for testing purposes, it's better to work directly with matrices
+        """
+        X0, Y0 = self.basis23
+
+        # many times we will evaluate endomorphisms on R0 or S0
+        # Trick to skip the DLOGs
+        if P == X0:
+            return vector((1, 0))
+
+        if P == Y0:
+            return vector((0, 1))
+
+        x, y = BiDLP(P, X0, Y0, 2**self.a * 3**self.b, ePQ=self.eWP0Q023)
+        return vector((x, y))
+
+    def canonical_BiDLP23s(self, Ps):
+        return (self.canonical_BiDLP23(P) for P in Ps)
+
     def strategy_dim2(self, n):
         if n in self.dim2_strats:
             return self.dim2_strats[n]
@@ -351,12 +540,37 @@ class Precomputations_PRISM:
         else:
             return self.eWP0Q0
 
+    def eR0S0(self, b):
+        if self.use_tate and b == self.b:
+            return self.eTP0Q0  # For now, using tate pairing equivalent
+        else:
+            return self.eWR0S0
+
+
+    # R, S of 3^f torsion
+    def weil_pairing3(self, R, S, f):
+        if self.use_biextension:
+            raise Exception("not implemented yet..")
+            # return weil_pairing_biextension(R, S, f)
+        else:
+            return weil_pairing_pari(R, S, 3**f)
+        
     #P, Q of 2^e torsion
     def weil_pairing(self, P, Q, e):
         if self.use_biextension:
             return weil_pairing_biextension(P, Q, e)
         else:
             return weil_pairing_pari(P, Q, 2**e)
+
+    def tate_pairing3(self, R, S, f, exp=None):
+        if exp is None:
+            exp = self.tate_exp
+        if self.use_biextension:
+            raise Exception("not implemented yet..")
+            # return tate_pairing_biextension(P, Q, e, exp=exp)
+        else:
+            return tate_pairing_pari(R, S, 3**f)**exp
+
 
     def tate_pairing(self, P, Q, e, exp=None):
         if exp is None:
@@ -365,6 +579,12 @@ class Precomputations_PRISM:
             return tate_pairing_biextension(P, Q, e, exp=exp)
         else:
             return tate_pairing_pari(P, Q, 2**e)**exp
+
+    def pairing3(self, R, S, f):
+        if self.use_tate and f == self.b:
+            return self.tate_pairing(R, S, f)
+        else:
+            return self.weil_pairing(R, S, f)
 
     def pairing(self, P, Q, e):
         if self.use_tate and e == self.e:

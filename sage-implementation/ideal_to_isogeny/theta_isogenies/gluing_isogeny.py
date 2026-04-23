@@ -216,6 +216,8 @@ class GluingThetaIsogeny(ThetaIsogeny):
         num_3 = zAtBzYtD[3 ^ self._zero_idx]
         num_4 = xAxByCyD[3 ^ self._zero_idx]
 
+        assert 0 not in [num_1, num_2, num_3, num_4], "nums : {0}, {1}, {2}, {3}".format(num_1, num_2, num_3, num_4)
+        
         # Compute and invert non-trivial denominators
         den_1, den_2, den_3, den_4 = batched_inversion(num_1, num_2, num_3, num_4)
 

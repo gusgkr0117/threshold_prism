@@ -35,7 +35,7 @@ class IdealToIsogenyQlapotis:
         self.precomps = precomps
         self.representation = None
         self.O0 = precomps.O0
-        self.e_target = e_target
+        self.e_target  = e_target
         self.J = J
         self.nJ = ZZ(J.norm())
         self._count = (None, None)

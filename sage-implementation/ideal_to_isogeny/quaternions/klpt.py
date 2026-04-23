@@ -282,3 +282,7 @@ def EquivalentRandomEichlerIdeal(I, Nτ):
 
     # Step 5: return K = χI(β)
     return chi(β, I)
+
+# # Take as input an left O0-ideal I
+# # output ideal J such that n(J) = 3^b and I ~ J
+# def EquivalentSmoothIdeal3b(I, b):

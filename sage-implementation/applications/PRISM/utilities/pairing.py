@@ -87,3 +87,6 @@ def weil_pairing_default(P, Q, D):
 def weil_pairing_power_two(P, Q, e):
     return weil_pairing_pari(P, Q, 2**e)
     #return weil_pairing_biextension(P, Q, e)
+
+def weil_pairing_power_three(P, Q, e):
+    return weil_pairing_pari(P, Q, 3**e)
