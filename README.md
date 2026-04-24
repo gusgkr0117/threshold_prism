@@ -7,7 +7,11 @@ This code is the SageMath implementation of the threshold PRISM signature.
 ## How to run
 ```bash
 cd sage-implementation/applications/PRISM
-python tPRISM.py
+python tPRISM.py [t] [n] [level]
+```
+For example, when t = 5, n = 7 and level = 1, run as
+```bash
+python tPRISM.py 5 7 1
 ```
 
 ## References

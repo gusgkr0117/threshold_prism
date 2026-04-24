@@ -4,6 +4,7 @@ import random
 import json, math
 from itertools import combinations
 import hashlib
+import os
 
 import sys
 sys.path.insert(0, '../..')
@@ -119,9 +120,9 @@ class threshold_PRISM_sign:
         if tmpS.is_zero(): return S
         x = None
         if not ((nI / 3) * tmpS).is_zero():
-            x = tmpS.discrete_log(tmpR)
+            x = tmpR.log(tmpS)
         else:
-            x = tmpR.discrete_log(tmpS)
+            x = tmpS.log(tmpR)
             return S - x*R
         return R - x*S
 
@@ -172,7 +173,7 @@ class threshold_PRISM_sign:
         ϕ1 = KummerLineIsogeny(_E0, _J1ker, nJ1)
         ϕ_fragment = [ϕ1]
         if v == b :
-            ϕ_list.append(ϕ1)
+            ϕ_list.append(ϕ_fragment)
             ϕ_fragment = []
 
         J_prev = J1
@@ -233,9 +234,9 @@ class threshold_PRISM_sign:
 
         return ϕ_list
     
-    def keygen(self, precomp_file = None, backup_file = None):
-        if precomp_file:
-            f = open(precomp_file, 'r')
+    def keygen(self, load_file = None, store_file = None):
+        if load_file:
+            f = open(load_file, 'r')
             json_data = json.load(f)
             h_list = json_data['h_list']
             h_len = len(h_list)
@@ -271,11 +272,11 @@ class threshold_PRISM_sign:
                 isog_path = self.LongIdealToIsogeny(J, v)
                 isog_paths.append(isog_path)
 
-            if backup_file:
+            if store_file:
                 json_data = {}
                 json_data['h_list'] = h_list
                 json_data['isog_paths'] = [[[isog_frag.to_list() for isog_frag in isog] for isog in isog_path] for isog_path in isog_paths]
-                with open(backup_file, 'w') as f:
+                with open(store_file, 'w') as f:
                     f.write(json.dumps(json_data))
 
         pk = isog_paths[0][-1][-1].codomain().curve()
@@ -433,11 +434,14 @@ class threshold_PRISM_sign:
         Wqinv = Wq ** (-1)
         return W1 in [Wq, Wqinv]
 
-    def test_protocol(self):
+    def test_protocol(self, mode = "load"):
         print(f"===({self.t}, {self.n})-threshold start===")
 
         # pk, sk = tPRISM.keygen(backup_file = 'backup_keys.json')
-        pk, sk, h_list = self.keygen(precomp_file = 'backup_keys.json')
+        if mode == 'load': pk, sk, h_list = self.keygen(load_file = f'precomp_keys_{self.t}_{self.n}_lvl{self.level}.json')
+        elif mode == 'store': pk, sk, h_list = self.keygen(store_file = f'precomp_keys_{self.t}_{self.n}_lvl{self.level}.json')
+        else: return None
+
         print("Keygen done.")
 
         # Choose random t parties among n parties
@@ -469,5 +473,24 @@ class threshold_PRISM_sign:
 
 
 if __name__=="__main__":
-    tPRISM = threshold_PRISM_sign(2, 3, level = 1)
-    tPRISM.test_protocol()
+    if len(sys.argv) < 4:
+        print('Usage : python tPRISM.py [t] [n] [level]')
+        exit(0)
+    try:
+        t, n, level = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3])
+    except:
+        print('wrong arguments..')
+        exit(0)
+    if t > n :
+        print('t must be less than or equal to n')
+        exit(0)
+    if level not in [1, 3, 5]:
+        print('choose level in {1, 3, 5}')
+        exit(0)
+
+    filename = f'precomp_keys_{t}_{n}_lvl{level}.json'
+    tPRISM = threshold_PRISM_sign(t, n, level = level)
+    if os.path.exists(filename): 
+        tPRISM.test_protocol(mode = 'load')
+    else:
+        tPRISM.test_protocol(mode = 'store')
