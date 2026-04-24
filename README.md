@@ -1,11 +1,19 @@
 # Threshold PRISM
 This code is the SageMath implementation of the threshold PRISM signature.
 
+# How to run
+```
+cd sage-implementation/applications/PRISM
+python tPRISM.py
+```
+
 ## References
 ### Source Codes
+ + [KummerIsogenies](https://github.com/mariascrs/KummerIsogenies) : Efficient (3,3)-isogeny on fast Kummer surfaces
  + [Qlapoti](https://github.com/KULeuven-COSIC/Qlapoti)
  + [sqisign_prism_v2](https://github.com/KULeuven-COSIC/sqisign_prism_v2)
  + [LearnToSQI](https://github.com/LearningToSQI/SQISign-SageMath)
 ### Related Papers
+ + [Efficient (3,3)-isogenies on fast Kummer surfaces](https://eprint.iacr.org/2024/144)
  + [Qlapoti: Simple and Efficient Translation of Quaternion Ideals to Isogenies](https://eprint.iacr.org/2025/1604)
  + [PRISM: Simple And Compact Identification and Signatures From Large Prime Degree Isogenies](https://eprint.iacr.org/2025/135)

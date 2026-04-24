@@ -60,7 +60,7 @@ Future Work:
 """
 
 # Sage imports
-from sage.all import prod, ZZ, PolynomialRing, EllipticCurve
+from sage.all import Integer, prod, ZZ, PolynomialRing, EllipticCurve
 from sage.rings.generic import ProductTree
 
 # Local imports
@@ -840,13 +840,16 @@ class KummerLineIsogeny(KummerLineIsogeny_Generic):
 # '''
         a = self._domain.montgomery_curve().a2()
         px = self._kernel.x()
-        return [a, px, self._degree]
+        return [[int(a[0]), int(a[1])], [int(px[0]), int(px[1])], int(self._degree)]
     
     @staticmethod
-    def from_list(x):
+    def from_list(x, precomps):
+        Fp2 = precomps.F
+        i = Fp2.gen()
         a, px, degree = x
-        Fp2 = a.parent()
+        a = a[0] + a[1] * i
+        px = px[0] + px[1] * i
         E = EllipticCurve(Fp2, [0, a, 0, 1, 0])
         _E = KummerLine(E)
         _P = _E(px)
-        return KummerLineIsogeny(_E, _P, degree)
+        return KummerLineIsogeny(_E, _P, Integer(degree))

@@ -6,6 +6,8 @@ from theta_structures.couple_point import CouplePoint
 from theta_isogenies.product_isogeny import EllipticProductIsogeny
 from theta_isogenies.product_isogeny_sqrt import EllipticProductIsogenySqrt
 from ideal_to_isogeny.endomorphisms import evaluate_endomorphism_type
+from applications.PRISM.others.utilities.discrete_log import BiDLP
+from applications.PRISM.utilities.supersingular import torsion_basis_with_pairing_3f
 
 class Dim2Isogeny:
     def __init__(self, kernel, n, endomorphisms=[], diagonal_isogenies=[], extra=0, precomps=None, curves=None, **kwds):
@@ -49,6 +51,38 @@ class Dim2Isogeny:
 
     def codomain(self):
         return self.isogeny.codomain()
+    
+    # input : 3^b-torsion point P in E1[3^b]
+    def pushforward_3b(self, P):
+        b = self.precomps.b
+        p = self.precomps.p
+
+        order = P.order()
+        E1 = P.curve()
+        len3 = order.valuation(3)
+        assert len3 <= b
+        
+        assert self.E1 == E1, f"E: {E1}\nE1 : {self.E1}\nE2 : {self.E2}"
+        E3 = self.E2
+
+        imP, _ = self(CouplePoint(P, E3(0)))
+
+        X3, Y3, _ = torsion_basis_with_pairing_3f(E3, len3)
+    
+        imX3, _ = self(CouplePoint(E1(0), X3))
+        imY3, _ = self(CouplePoint(E1(0), Y3))
+        imXmY3, _ = self(CouplePoint(E1(0), X3 - Y3))
+
+        if (imX3 - imY3)[0] != imXmY3[0]:
+            imY3 = -imY3
+
+        x, y = BiDLP(imP, imX3, imY3, order)
+        assert imP == x * imX3 + y * imY3
+
+        imimP = x * X3 + y * Y3
+        assert imimP.curve() == self.E2
+        
+        return imimP
 
     def embedded_isogeny(self, degree, basis=None, e=None, ePQ=None):
         """
