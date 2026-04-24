@@ -18,6 +18,7 @@ from ideal_to_isogeny.ideal_to_isogeny_qlapoti23 import IdealToIsogenyQlapotis23
 from ideal_to_isogeny.quaternion_helpers.helpers import reduced_ideal
 from ideal_to_isogeny.dim2_wrapper import Dim2Isogeny
 from precomputations_PRSIM import Precomputations_PRISM
+from PRISM.utilities.supersingular import torsion_basis_with_pairing_2e
 from others.utilities.discrete_log import BiDLP, discrete_log_pari
 from others.montgomery_isogenies.kummer_isogeny import KummerLineIsogeny
 from montgomery_isogenies.kummer_line import KummerLine
@@ -277,7 +278,7 @@ class threshold_PRISM_sign:
                 with open(backup_file, 'w') as f:
                     f.write(json.dumps(json_data))
 
-        pk = isog_paths[0][-1][-1].codomain()
+        pk = isog_paths[0][-1][-1].codomain().curve()
         sk = []
         for party_idx in range(1, self.n + 1):
             partial_sk = []
@@ -413,24 +414,31 @@ class threshold_PRISM_sign:
         return (sigma_cur, prev + 1)
     
     def verify(self, msg, sig, pk):
+        a = self.precomps.a
         q, _ = HashToPrime(msg, pk, level = self.level)
         (P1, Q1), (P2, Q2) = sig
         E1, E2 = P1.curve(), P2.curve()
         if pk.j_invariant() != E1.j_invariant(): return False
-        Phi = Dim2Isogeny(((P1, P2), (Q1, Q2)), self.precomps.a - 2, extra = 2, precomps = self.precomps)
+        Phi = Dim2Isogeny(((P1, P2), (Q1, Q2)), a - 2, extra = 2, precomps = self.precomps)
         
         # Check degrees using pairings (TODO)
         Id2 = E2(0)
-        D = 2**self.precomps.a
+        D = 2**(a-2)
+        Ppk, Qpk, W = torsion_basis_with_pairing_2e(E1, a-2)
+        P1, _ = Phi((Ppk, Id2))
+        Q1, _ = Phi((Qpk, Id2))
 
-        return True
+        W1 = P1.weil_pairing(Q1, D)
+        Wq = W**q
+        Wqinv = Wq ** (-1)
+        return W1 in [Wq, Wqinv]
 
     def test_protocol(self):
-        print(f"({self.t}, {self.n})-threshold start")
+        print(f"===({self.t}, {self.n})-threshold start===")
 
         # pk, sk = tPRISM.keygen(backup_file = 'backup_keys.json')
         pk, sk, h_list = self.keygen(precomp_file = 'backup_keys.json')
-        print("Keygen done..")
+        print("Keygen done.")
 
         # Choose random t parties among n parties
         collab = random.sample(list(range(1, self.n + 1)), self.t)
