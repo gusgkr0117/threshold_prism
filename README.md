@@ -1,8 +1,11 @@
 # Threshold PRISM
 This code is the SageMath implementation of the threshold PRISM signature.
 
-# How to run
-```
+## Requirements
+ + [SageMath version 10.7](https://doc.sagemath.org/html/en/installation/index.html)
+
+## How to run
+```bash
 cd sage-implementation/applications/PRISM
 python tPRISM.py
 ```
