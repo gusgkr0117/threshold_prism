@@ -48,7 +48,7 @@ def HashToPrime(msg, pk_curve, counter=0, level=1):
 
         exp2 = params.levels_threshold[level]['a']
         q = int.from_bytes(h, 'big') % 2**(exp2 - 2)
-        if is_pseudoprime(q) and (2**(exp2-2) - q) % 3 != 0:
+        if is_pseudoprime(q) and is_pseudoprime(2**(exp2-2) - q):
             return q, counter
         counter += 1
 
@@ -342,8 +342,13 @@ class threshold_PRISM_sign:
             P1, Q1, P2, Q2 = imP1, imQ1, imP2, imQ2
 
         # masking evaluated points (TODO)
+        P_can, Q_can, _ = torsion_basis_with_pairing_2e(P1.curve(), a)
+        x, y = BiDLP(P_can, P1, Q1, 2**a)
+        z, w = BiDLP(Q_can, P1, Q1, 2**a)
+        newP2 = x*P2 + y*Q2
+        newQ2 = z*P2 + w*Q2
 
-        return (P1, Q1), (P2, Q2)
+        return (P_can, Q_can), (newP2, newQ2)
 
     def sign(self, party_idx, msg, h_list, subset, partial_sk, pk, partial_sig = None, prev = None):
         a = self.precomps.a
