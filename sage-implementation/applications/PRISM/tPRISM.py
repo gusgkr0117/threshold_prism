@@ -37,14 +37,18 @@ def HashToPrime(msg, pk_curve, counter=0, level=1):
     Level is the security level
     """
     msg += str(pk_curve.j_invariant()).encode()
-
+    lamb = {1: 128, 2: 192, 3: 256}[level]
+    
     while True:
         if level == 1:
             h = hashlib.sha256(msg + str(counter).encode()).digest()
+            for _ in range(2*lamb - 1) : h = hashlib.sha256(h).digest()
         elif level == 3:
             h = hashlib.sha384(msg + str(counter).encode()).digest()
+            for _ in range(2*lamb - 1) : h = hashlib.sha384(h).digest()
         else:
             h = hashlib.sha512(msg + str(counter).encode()).digest()
+            for _ in range(2*lamb - 1) : h = hashlib.sha512(h).digest()
 
         exp2 = params.levels_threshold[level]['a']
         q = int.from_bytes(h, 'big') % 2**(exp2 - 2)
@@ -65,24 +69,49 @@ class threshold_PRISM_sign:
             precomps = Precomputations_PRISM(prime, 122, a = a, b = b, role='threshold')
         self.precomps = precomps
 
+    # def GenHashFamily(self):
+    #     n, t = self.n, self.t
+    #     n_list = list(range(1, n+1))
+    #     t_set = set(range(1, t+1))
+    #     h_list = []
+    #     obtained_subsets = []
+
+    #     while True:
+    #         h = random_function(n, t)
+    #         is_new = False
+    #         for subset in combinations(n_list, t):
+    #             if set(subset) in obtained_subsets: continue
+    #             im_subset = [h[x] for x in subset]
+    #             if set(im_subset)==set(t_set):
+    #                 obtained_subsets.append(set(subset))
+    #                 is_new = True
+    #         if is_new : h_list.append(h)
+    #         if len(obtained_subsets) == math.comb(n, t): break
+
+    #     return h_list, len(h_list)
+
     def GenHashFamily(self):
         n, t = self.n, self.t
-        n_list = list(range(1, n+1))
-        t_set = set(range(1, t+1))
+        nmt_list = list(range(1, n - ceil(t/2) + 1))
         h_list = []
-        obtained_subsets = []
+        
+        for even_subset in combinations(nmt_list, floor(t/2)):
+            even_subset = list(even_subset)
+            even_subset.sort()
+            even_subset = [x + i + 1 for (i, x) in enumerate(even_subset)]
+            h = [-1]
+            cur = 1
+            for x in range(1, n+1):
+                if x > even_subset[-1]:
+                    h.append(t)
+                    continue
 
-        while True:
-            h = random_function(n, t)
-            is_new = False
-            for subset in combinations(n_list, t):
-                if set(subset) in obtained_subsets: continue
-                im_subset = [h[x] for x in subset]
-                if set(im_subset)==set(t_set):
-                    obtained_subsets.append(set(subset))
-                    is_new = True
-            if is_new : h_list.append(h)
-            if len(obtained_subsets) == math.comb(n, t): break
+                if x < even_subset[0]: h.append(1)
+                elif cur != 1 and x < even_subset[cur - 1]: h.append(2*cur - 1)
+                elif x == even_subset[cur - 1]: 
+                    h.append(2*cur)
+                    cur += 1
+            h_list.append(h)
 
         return h_list, len(h_list)
     
