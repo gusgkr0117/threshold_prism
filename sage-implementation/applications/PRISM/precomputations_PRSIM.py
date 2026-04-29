@@ -531,8 +531,9 @@ class Precomputations_PRISM:
         if n in self.dim2_strats:
             return self.dim2_strats[n]
         else:
-            print(f"Dim 2 strategy not precomputed: {n} || should be in logger")
-            return optimised_strategy(n)
+            # print(f"Dim 2 strategy not precomputed: {n} || should be in logger")
+            self.dim2_strats[n] = optimised_strategy(n)
+            return self.dim2_strats[n]
 
     def eP0Q0(self, e):
         if self.use_tate and e == self.e:

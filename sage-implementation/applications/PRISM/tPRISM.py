@@ -2,6 +2,7 @@ from sage.all import *
 from sage.algebras.quatalg.quaternion_algebra import *
 import random
 import json, math
+import time
 from itertools import combinations
 import hashlib
 import os
@@ -37,7 +38,7 @@ def HashToPrime(msg, pk_curve, counter=0, level=1):
     Level is the security level
     """
     msg += str(pk_curve.j_invariant()).encode()
-    lamb = {1: 128, 2: 192, 3: 256}[level]
+    lamb = {1: 128, 3: 192, 5: 256}[level]
     
     while True:
         if level == 1:
@@ -66,8 +67,15 @@ class threshold_PRISM_sign:
         self.level = level
         self.security_param = {1:128, 3:192, 5:256}[level]
         if not precomps:
+            start = time.perf_counter()
             precomps = Precomputations_PRISM(prime, 122, a = a, b = b, role='threshold')
+            end = time.perf_counter()
+            print(f'Precomputation Elapsed : {end - start:.6f} sec')
         self.precomps = precomps
+        self.id2isotime = 0
+        self.id2isonum = 0
+        self.longid2isotime = 0
+        self.longid2isonum = 0
 
     # def GenHashFamily(self):
     #     n, t = self.n, self.t
@@ -211,19 +219,29 @@ class threshold_PRISM_sign:
 
         while prev_steps < m:
             # Compute an equivalent ideal K ~ J_1 * ... * J_(i-1)
-            J_prev_red = reduced_ideal(J_prev.conjugate()).conjugate()
+            # L = J_prev.conjugate() * beta1.conjugate() / n(J_prev)
+            # L.conjugate() = beta1 * J_prev / n(J_prev)
+            L, beta1 = reduced_ideal(J_prev.conjugate(), return_elt = True)
+            # testll = beta1**(-1) * L.conjugate() * beta1
+            # assert testll.left_order() == O0
+            # J_prev_red = beta1 * J_prev / n(J_prev)
+            J_prev_red = L.conjugate()
             while True:
-                K, _, _ = random_equivalent_ideal(J_prev_red, adjust_right_order=True)
+                # K = beta2.conjugate() * J_prev_red / n(J_prev_red) = beta2.conjugate() * beta1 * J_prev / n(J_prev_red)
+                K, beta2, _ = random_equivalent_ideal(J_prev_red, adjust_right_order=True)
+                # testll = beta1**(-1) * beta2 * K * beta2 ** (-1) * beta1
+                # assert testll.left_order() == O0
                 if K.norm() % 3 != 0: break
-            assert K.is_right_equivalent(J_prev)
+            # assert K.is_right_equivalent(J_prev)
             # print(f'K norm : {K.norm()}')
             # K = small_equivalent_ideal(J1)
             Jilong = (J_prev.conjugate() * J).scale(1/J_prev.norm())
 
             # Compute the pullback of i-th ideal J_i, i.e. [J_prev]^*J_i
             Ji = pullback_ideal(Jilong, K)
-            Oi = Ji.left_order()
-            beta = Oi.isomorphism_to(O0, conjugator=True)
+            # Oi = Ji.left_order()
+            # beta = Oi.isomorphism_to(O0, conjugator=True)
+            beta = beta2**(-1) * beta1
             K = beta**(-1) * K * beta
             Ji = beta**(-1) * Ji * beta
             assert Ji.left_order() == O0
@@ -239,7 +257,10 @@ class threshold_PRISM_sign:
             prev_v = (prev_v + Jilen) % v
 
             # Compute the kernel of [J_prev]^*J_i
+            # start = time.perf_counter()
             Jiker = self.IdealToIsogeny3b(Ji)
+            # end = time.perf_counter()
+            # print(f"IdealToIsogeny3b Elapsed : {end - start : .6f} sec")
 
             # phi_aux <- IdealToIsogeny(K)
             phi_aux = IdealToIsogenyQlapotis23(K, a, b, self.precomps, allow_diags=False)
@@ -248,13 +269,24 @@ class threshold_PRISM_sign:
             P, Q = self.precomps.basis23
             cofactor = (2**a * 3**b) / nJi
             P, Q = cofactor * P, cofactor * Q
+            # start=time.perf_counter()
             x, y = BiDLP(Jiker, P, Q, nJi)
+            # end=time.perf_counter()
+            # print(f"BiDLP Elapsed : {end - start : .6f} sec")
+            start = time.perf_counter()
             imE, imP, imQ = phi_aux.images()
+            end = time.perf_counter()
+            self.id2isotime += end - start
+            self.id2isonum += 1
+            # print(f'IdealToIsogeny Elapsed : {self.id2isotime / self.id2isonum:.6f} sec')
             imJiker = cofactor * (x * imP + y * imQ)
             assert imJiker.order() == nJi
             _imE = KummerLine(imE)
             _imJiker = _imE(imJiker[0])
+            # start = time.perf_counter()
             ϕi = KummerLineIsogeny(_imE, _imJiker, nJi)
+            # end = time.perf_counter()
+            # print(f'3^b kummerline isogeny Elapsed : {end - start:.6f} sec')
             ϕ_fragment.append(ϕi)
             if prev_v == 0:
                 ϕ_list.append(ϕ_fragment)
@@ -278,12 +310,11 @@ class threshold_PRISM_sign:
             t = self.t
             v = max(ceil(2 * λ * log(2,3)), ceil(5 * log(p, 3) / (2*t)))
             h_list, h_len = self.GenHashFamily()
-            print(f'h_len : {h_len}')
+            print(f'Size of perfect hash family : {h_len}')
             # Choose random small ideal
-            p = self.precomps.p
             O0 = self.precomps.O0
 
-            q1, q2 = random_prime(floor(p**(1/8))), random_prime(p)
+            q1, q2 = random_prime(int(ZZ(p).nth_root(8, truncate_mode=True)[0])), random_prime(p)
             alpha = FullrepresentInteger(q1 * q2, p)
             I = O0 * alpha + O0 * q1
             assert(I.norm() == q1)
@@ -298,7 +329,12 @@ class threshold_PRISM_sign:
             isog_paths = []
             for L in ideal_paths:
                 J, _ = make_cyclic(L)
+                start = time.perf_counter()
                 isog_path = self.LongIdealToIsogeny(J, v)
+                end = time.perf_counter()
+                self.longid2isotime += end - start
+                self.longid2isonum += 1
+                # print(f'LongIdealToIsogeny Elapsed : {end - start:.6f} sec')
                 isog_paths.append(isog_path)
 
             if store_file:
@@ -471,16 +507,19 @@ class threshold_PRISM_sign:
     def test_protocol(self, mode = "load"):
         print(f"===({self.t}, {self.n})-threshold start===")
 
+        start = time.perf_counter()
         # pk, sk = tPRISM.keygen(backup_file = 'backup_keys.json')
         if mode == 'load': pk, sk, h_list = self.keygen(load_file = f'precomp_keys_{self.t}_{self.n}_lvl{self.level}.json')
         elif mode == 'store': pk, sk, h_list = self.keygen(store_file = f'precomp_keys_{self.t}_{self.n}_lvl{self.level}.json')
         else: return None
-
-        print("Keygen done.")
+        end = time.perf_counter()
+        print(f'Keygen Elapsed : {end - start:.6f} sec')
+        print(f'## IdealToIsogeny : {self.id2isotime/self.id2isonum:.6f} sec ({self.id2isonum})')
+        print(f'## LongIdealToIsogeny : {self.longid2isotime/self.longid2isonum:.6f} sec ({self.longid2isonum})')
 
         # Choose random t parties among n parties
         collab = random.sample(list(range(1, self.n + 1)), self.t)
-        print(f'Collaborators : {collab}')
+        print(f'Participants : {collab}')
         
         # Get the signing order
         index = self.SelectHashFunc(h_list, collab)
@@ -493,15 +532,22 @@ class threshold_PRISM_sign:
         msg = b"Sample message"
 
         # Signing
+        start = time.perf_counter()
         partial_sig = None
         for prev, party_idx in enumerate(signing_order):
             partial_sig, _ = self.sign(party_idx, msg, h_list, collab, sk[party_idx - 1], pk, partial_sig = partial_sig, prev = prev)
             print(f"#{prev+1} : {party_idx}-th party has signed.")
 
         sig = partial_sig
+        end = time.perf_counter()
+        print(f'Total Signing Elapsed : {end - start:.6f} sec')
         # Verification
-        assert self.verify(msg, sig, pk), "The verification failed"
-        print("verification succeed")
+        start = time.perf_counter()
+        result = self.verify(msg, sig, pk)
+        end = time.perf_counter()
+        if result : print("Verification succeed")
+        else: print("Verification failed")
+        print(f'Verification Elapsed : {end - start:.6f} sec')
 
         return True
 

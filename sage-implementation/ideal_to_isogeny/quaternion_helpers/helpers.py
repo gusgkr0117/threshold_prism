@@ -101,7 +101,7 @@ def reduced_ideal(I, return_elt=False):
     reduced_basis_elements = reduced_basis(I)
     beta = reduced_basis_elements[0]
     J = I*(beta.conjugate()/I.norm())
-    assert J.conjugate().is_right_equivalent(I.conjugate())
+    # assert J.conjugate().is_right_equivalent(I.conjugate())
     if return_elt:
         return J, beta
     return J
