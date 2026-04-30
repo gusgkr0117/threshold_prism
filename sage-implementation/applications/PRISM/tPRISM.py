@@ -40,6 +40,23 @@ def HashToPrime(msg, pk_curve, counter=0, level=1):
     msg += str(pk_curve.j_invariant()).encode()
     lamb = {1: 128, 3: 192, 5: 256}[level]
     
+    if counter != 0:
+        if level == 1:
+            h = hashlib.sha256(msg + str(counter).encode()).digest()
+            for _ in range(2*lamb - 1) : h = hashlib.sha256(h).digest()
+        elif level == 3:
+            h = hashlib.sha384(msg + str(counter).encode()).digest()
+            for _ in range(2*lamb - 1) : h = hashlib.sha384(h).digest()
+        else:
+            h = hashlib.sha512(msg + str(counter).encode()).digest()
+            for _ in range(2*lamb - 1) : h = hashlib.sha512(h).digest()
+
+        exp2 = params.levels_threshold[level]['a']
+        q = int.from_bytes(h, 'big') % 2**(exp2 - 2)
+        if is_pseudoprime(q) and is_pseudoprime(2**(exp2-2) - q):
+            return q, counter
+        raise ValueError("invalid salt provided")
+
     while True:
         if level == 1:
             h = hashlib.sha256(msg + str(counter).encode()).digest()
@@ -415,7 +432,7 @@ class threshold_PRISM_sign:
 
         return (P_can, Q_can), (newP2, newQ2)
 
-    def sign(self, party_idx, msg, h_list, subset, partial_sk, pk, partial_sig = None, prev = None):
+    def sign(self, party_idx, msg, h_list, subset, partial_sk, pk, partial_sig = None, prev = None, r=None):
         a = self.precomps.a
         b = self.precomps.b
         p = self.precomps.p
@@ -427,7 +444,9 @@ class threshold_PRISM_sign:
 
         index = self.SelectHashFunc(h_list, subset)
         if index == None : return None
-        q, _ = HashToPrime(msg, pk, level = self.level)
+        if r: q, r = HashToPrime(msg, pk, counter=r, level = self.level)
+        else: q, r = HashToPrime(msg, pk, level = self.level)
+
         h = h_list[index]
         partial_isog = partial_sk[index]
         isog_idx = h[party_idx]
@@ -480,13 +499,13 @@ class threshold_PRISM_sign:
             # E, P, Q = sigma0.images()
             # sigma0 = self.precomps.E0, self.precomps.basis, E, (P, Q)
             sigma1 = self.pushforward_sig(sigma0, partial_isog, q)
-            return (sigma1, 1)
+            return (sigma1, 1, r)
         sigma_cur = self.pushforward_sig(partial_sig, partial_isog, q)
-        return (sigma_cur, prev + 1)
+        return (sigma_cur, prev + 1, r)
     
-    def verify(self, msg, sig, pk):
+    def verify(self, msg, r, sig, pk):
         a = self.precomps.a
-        q, _ = HashToPrime(msg, pk, level = self.level)
+        q, _ = HashToPrime(msg, pk, counter=r, level = self.level)
         (P1, Q1), (P2, Q2) = sig
         E1, E2 = P1.curve(), P2.curve()
         if pk.j_invariant() != E1.j_invariant(): return False
@@ -514,8 +533,9 @@ class threshold_PRISM_sign:
         else: return None
         end = time.perf_counter()
         print(f'Keygen Elapsed : {end - start:.6f} sec')
-        print(f'## IdealToIsogeny : {self.id2isotime/self.id2isonum:.6f} sec ({self.id2isonum})')
-        print(f'## LongIdealToIsogeny : {self.longid2isotime/self.longid2isonum:.6f} sec ({self.longid2isonum})')
+        if mode == 'store':
+            print(f'## IdealToIsogeny : {self.id2isotime/self.id2isonum:.6f} sec ({self.id2isonum})')
+            print(f'## LongIdealToIsogeny : {self.longid2isotime/self.longid2isonum:.6f} sec ({self.longid2isonum})')
 
         # Choose random t parties among n parties
         collab = random.sample(list(range(1, self.n + 1)), self.t)
@@ -534,8 +554,9 @@ class threshold_PRISM_sign:
         # Signing
         start = time.perf_counter()
         partial_sig = None
+        r = None
         for prev, party_idx in enumerate(signing_order):
-            partial_sig, _ = self.sign(party_idx, msg, h_list, collab, sk[party_idx - 1], pk, partial_sig = partial_sig, prev = prev)
+            partial_sig, _, r = self.sign(party_idx, msg, h_list, collab, sk[party_idx - 1], pk, partial_sig = partial_sig, prev = prev, r= r)
             print(f"#{prev+1} : {party_idx}-th party has signed.")
 
         sig = partial_sig
@@ -543,7 +564,7 @@ class threshold_PRISM_sign:
         print(f'Total Signing Elapsed : {end - start:.6f} sec')
         # Verification
         start = time.perf_counter()
-        result = self.verify(msg, sig, pk)
+        result = self.verify(msg, r, sig, pk)
         end = time.perf_counter()
         if result : print("Verification succeed")
         else: print("Verification failed")
