@@ -1,3 +1,4 @@
+precomp*.json
 __pycache__/
 *.swp
 notes.ipynb
