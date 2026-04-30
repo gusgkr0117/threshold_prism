@@ -13,6 +13,12 @@ For example, when t = 5, n = 7 and level = 1, run as
 ```bash
 python tPRISM.py 5 7 1
 ```
+When executed, the program generates a file named `precomp_keys_[t]_[n]_lvl[level].json` in the current directory.
+
+If the program is run again with the same parameters (t, n, level), it will check for the existence of this file and reuse the precomputed keys instead of generating new ones.
+
+To test the key generation process, you must delete the corresponding `precomp_keys_[t]_[n]_lvl[level].json` file from the current directory before running the program.
+
 
 ## References
 ### Source Codes
